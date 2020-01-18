@@ -9,6 +9,9 @@ const server = express(); //creates express application using express module.
 server.use(express.json());
 server.use(cors());
 
+const port = 5000;
+server.listen(port, () => console.log(`\n*** API on port ${port} ***\n`));
+
 // =======================
 //     POST REQUEST
 // =======================
@@ -57,7 +60,7 @@ server.post("/api/posts/:id/comments", (req, res) => {
             });
         } else if (comment) {
           //cancel the request, return 400
-          Data.insert(req.body.post)
+          Data.insertComment(req.body)
             .then(post => {
               res
                 .status(201) //created user
@@ -83,9 +86,23 @@ server.post("/api/posts/:id/comments", (req, res) => {
 //        GET REQUESTS
 // ============================
 server.get("/api/posts", (req, res) => {
-  // console.log(Data.find(req.params));
+  //Trying to attach comments to the user object.........
   Data.find()
     .then(user => {
+      console.log("/api/posts>Data.find()");
+      user.map((each, index) => {
+        let commentArr = [];
+        Data.findPostComments(each.id)
+          .then(comments => {
+            comments.map((comment, index) => {
+              commentArr.push(comment.text);
+            });
+            user[each.id].text = commentArr;
+            // console.log("commentArr:", user[each.id]);
+          })
+          .catch(e => console.log("no comments"));
+      });
+      // console.log("pre...", user);
       res
         .status(200) //successful get user info
         .json(user); //return user info
@@ -99,14 +116,14 @@ server.get("/api/posts", (req, res) => {
     });
 });
 server.get("/api/posts/:id", (req, res) => {
-  console.log("server.get.id:", req.params); //gives id number
+  // console.log("server.get.id:", req.params); //gives id number
   Data.findById(req.params.id)
     .then(user => {
-      console.log("testing", user[0]);
+      console.log("testing", user[0]); //returns object with: id, title, contents
       if (user) {
         res
           .status(200) //successful get user info
-          .json(user); //return user.id info
+          .json(user[0]); //return user.id info
       } else {
         res
           .status(404) //user not found
@@ -119,25 +136,29 @@ server.get("/api/posts/:id", (req, res) => {
         .json({ errorMessage: "The post information could not be retrieved." });
     });
 });
+//
 server.get("/api/posts/:id/comments", (req, res) => {
-  Data.findCommentById(req.params.id)
-    .then(comment => {
-      console.log(comment[0].post);
-      if (comment) {
+  var commentArr = [];
+  Data.findPostComments(req.params.id)
+    .then(comments => {
+      if (!comments || comments.length < 1) {
         res
-          .status(200) //successful get comment info
-          .json(comment[0].post); //return comment info
+          .status(404) //bad!!
+          .json({ message: "This ID has no comments." });
       } else {
+        comments.map((comment, index) => {
+          commentArr.push(comment.text);
+        });
         res
-          .status(404)
-          .json({ message: "The post with the specified ID does not exist." });
+          .status(200) //success
+          .json(commentArr); //return comments
       }
     })
     .catch(() => {
       res
         .status(500) //server error
         .json({
-          errorMessage: "The comments information could not be retrieved."
+          errorMessage: "Comments information could not retrieve."
         });
     });
 });
@@ -162,6 +183,9 @@ server.get("/api/posts/:id", (req, res) => {
     });
 });
 
+// ======================
+//       DELETE
+// ======================
 server.delete("/api/posts/:id", (req, res) => {
   Data.remove(req.params.id)
     .then(users => {
@@ -182,6 +206,9 @@ server.delete("/api/posts/:id", (req, res) => {
     });
 });
 
+// ================
+//       PUT
+// ================
 server.put("/api/posts/:id", (req, res) => {
   const { name, bio } = req.body;
 
@@ -211,21 +238,3 @@ server.put("/api/posts/:id", (req, res) => {
       });
   }
 });
-
-const port = 5000;
-server.listen(port, () => console.log(`\n*** API on port ${port} ***\n`));
-
-//TESTING RESULTS FROM INSOMNIAC...
-/*
-url: localhost:5000
-
-get (/api/users) - gives list of hobbits
-post (/api/users),(with: {'name': '<name>', "bio": "<description>"}  )
-    - returns "id": 3
-    ) 
-get (/api/users/1) - gives info for 1 hobbit
-delete (/api/users/1) - removes user with id # that matches.
-put (/api/user/1), with: {"name": "<name>", "bio": "<new description>" }
-    - returns id number; data is updated
-
-*/
